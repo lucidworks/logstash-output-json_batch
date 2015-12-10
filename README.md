@@ -21,7 +21,7 @@ Default batch size is 50, with a wait of at most 5 seconds per send. These can b
 
 To build the gem yourself, use `gem build logstash-output-json_batch.gemspec` in the root of this repository. Alternatively, you can download a built version of the gem from the `dist` branch of this repository. 
 
-`$LOGSTASH_HOME/bin/plugin install logstash-output-json_batch-0.1.0.gem`
+To install, run the following command, assuming the gem is in the local directory: `$LOGSTASH_HOME/bin/plugin install logstash-output-json_batch-0.1.0.gem`
 
 Direct links to the built versions of the gems are available here:
 

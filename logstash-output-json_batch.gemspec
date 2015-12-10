@@ -2,7 +2,7 @@ Gem::Specification.new do |s|
   s.name            = 'logstash-output-json_batch'
   s.version         = '0.1.0'
   s.licenses        = ['Apache License (2.0)']
-  s.summary         = "This output lets you `POST` messages as JSON in a batched fashion"
+  s.summary         = "This output lets you `POST` messages as JSON in a batched fashions"
   s.description     = "This gem is a logstash plugin required to be installed on top of the Logstash core pipeline using $LS_HOME/bin/plugin install gemname. This gem is not a stand-alone program"
   s.authors         = ["jwestberg"]
   s.email           = 'joel.westberg@lucidworks.com'
@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
   s.metadata = { "logstash_plugin" => "true", "logstash_group" => "output" }
 
   # Gem dependencies
-  s.add_runtime_dependency "logstash-core", ">= 2.0.0.beta2", "< 3.0.0"
+  s.add_runtime_dependency "logstash-core", ">= 2.1.0", "< 3.0.0"
   s.add_runtime_dependency "logstash-mixin-http_client", ">= 2.0.2", "< 3.0.0"
 
   # Constrain Maticore dependency to less than 0.5.0 because of changes in the async handling

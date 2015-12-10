@@ -25,4 +25,4 @@ To build the gem yourself, use `gem build logstash-output-json_batch.gemspec` in
 
 Direct links to the built versions of the gems are available here:
 
-* [logstash-output-json_batch-0.1.0](https://github.com/jwestberg/logstash-output-http_batch/blob/dist/logstash-output-json_batch-0.1.0.gem)
+* [logstash-output-json_batch-0.1.0](https://github.com/jwestberg/logstash-output-http_batch/blob/dist/logstash-output-json_batch-0.1.0.gem?raw=true)

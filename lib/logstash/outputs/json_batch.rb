@@ -13,11 +13,15 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
   config_name "json_batch"
 
   # URL to use
-  config :url, :validate => :string, :default => "http://localhost:8764/api/apollo/index-pipelines/conn_solr/collections/logstash/index" 
+  config :url, :validate => :string, :required => true 
 
   # Custom headers to use
   # format is `headers => ["X-My-Header", "%{host}"]`
   config :headers, :validate => :hash
+
+  config :flush_size, :validate => :number
+
+  config :idle_flush_time, :validate => :number
 
   def register
     # Handle this deprecated option. TODO: remove the option
@@ -82,7 +86,6 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
     end
 
     request.on_success do |response|
-
       #string = "Some "+ Time.new.inspect + " " + response
       #puts "%s status code returned for %s docs @ %s\n" % [response.code, documents.length, Time.new.inspect]
       if response.code < 200 || response.code > 299

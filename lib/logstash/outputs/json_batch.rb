@@ -37,7 +37,6 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
       :max_interval => @idle_flush_time,
       :logger => @logger
     )
-    puts @flush_size
 
   end # def register
 
@@ -119,7 +118,6 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
     begin
       request_async_background(request)
     rescue Exception => e
-      puts "Hello!"
       @logger.warn("An error occurred while indexing: #{e.message}")
     end
   end

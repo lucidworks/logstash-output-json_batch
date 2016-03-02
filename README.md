@@ -25,4 +25,4 @@ To install, run the following command, assuming the gem is in the local director
 
 Direct links to the built versions of the gems are available here:
 
-* [logstash-output-json_batch-0.1.1](https://github.com/jwestberg/logstash-output-http_batch/blob/dist/logstash-output-json_batch-0.1.1.gem?raw=true)
+* [logstash-output-json_batch-0.1.2](https://github.com/jwestberg/logstash-output-http_batch/blob/dist/logstash-output-json_batch-0.1.2.gem?raw=true)

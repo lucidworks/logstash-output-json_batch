@@ -93,7 +93,8 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
           "Encountered non-200 HTTP code #{200}",
           :response_code => response.code,
           :url => url,
-          :event => event)
+          :response_body => response.body,
+          :num_docs => documents.length)
       end
     end
 
@@ -105,7 +106,7 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
         sleep 0.1
         make_request(documents, count + 1)
       else
-        log_failure("Could not fetch URL",
+        log_failure("Could not access URL",
           :url => url,
           :method => @http_method,
           :body => body,

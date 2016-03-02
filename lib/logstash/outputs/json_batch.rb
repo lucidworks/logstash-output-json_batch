@@ -19,9 +19,11 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
   # format is `headers => ["X-My-Header", "%{host}"]`
   config :headers, :validate => :hash
 
-  config :flush_size, :validate => :number
+  config :flush_size, :validate => :number, :default => 50
 
-  config :idle_flush_time, :validate => :number
+  config :idle_flush_time, :validate => :number, :default => 5
+
+  config :retry_individual, :validate => :boolean, :default => false
 
   def register
     # Handle this deprecated option. TODO: remove the option
@@ -41,6 +43,13 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
       :max_interval => @idle_flush_time,
       :logger => @logger
     )
+    logger.info("Initialized json_batch with settings", 
+      :flush_size => @flush_size,
+      :idle_flush_time => @idle_flush_time,
+      :request_tokens => @pool_max,
+      :url => @url,
+      :headers => request_headers,
+      :retry_individual => @retry_individual)
 
   end # def register
 
@@ -67,6 +76,8 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
     # Block waiting for a token
     token = @request_tokens.pop
 
+
+
     # Create an async request
     begin
       request = client.send(:post, @url, :body => body, :headers => request_headers, :async => true)
@@ -87,14 +98,22 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
 
     request.on_success do |response|
       #string = "Some "+ Time.new.inspect + " " + response
-      #puts "%s status code returned for %s docs @ %s\n" % [response.code, documents.length, Time.new.inspect]
+      #
       if response.code < 200 || response.code > 299
         log_failure(
-          "Encountered non-200 HTTP code #{200}",
-          :response_code => response.code,
-          :url => url,
-          :response_body => response.body,
-          :num_docs => documents.length)
+            "Encountered non-200 HTTP code #{response.code}",
+            :response_code => response.code,
+            :url => url,
+            :response_body => response.body,
+            :num_docs => documents.length,
+            :retry_individual => @retry_individual)
+        if documents.length > 1 && @retry_individual
+          documents.each do |doc| 
+            make_request([doc], 0)
+          end
+        else 
+          puts "%s status code returned for %s docs @ %s\n" % [response.code, body, Time.new.inspect]
+        end
       end
     end
 

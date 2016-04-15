@@ -23,7 +23,9 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
 
   config :idle_flush_time, :validate => :number, :default => 5
 
-  config :retry_individual, :validate => :boolean, :default => false
+  config :retry_individual, :validate => :boolean, :default => true
+
+  config :pool_max, :validate => :number, :default => 50
 
   def register
     # Handle this deprecated option. TODO: remove the option
@@ -35,7 +37,7 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
     # tokens must be added back by the client on success
     @request_tokens = SizedQueue.new(@pool_max)
     @pool_max.times {|t| @request_tokens << true }
-
+    @total = 0
     @requests = Array.new
 
     buffer_initialize(
@@ -53,7 +55,7 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
 
   end # def register
 
-  def receive(event)
+  def receive(event, async_type=:background)
     buffer_receive(event)
   end #def event
 
@@ -66,39 +68,40 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
         documents.push(document)
     end
 
-    make_request(documents, 0)
+    make_request(documents)
+  end
+
+  def multi_receive(events)
+    events.each {|event| receive(event, :parallel)}
+    client.execute!
   end
 
   private
 
-  def make_request(documents, count)
+  def make_request(documents, async_type=:background)
     body = LogStash::Json.dump(documents)
     # Block waiting for a token
-    token = @request_tokens.pop
-
-
+    token = @request_tokens.pop if async_type == :background
 
     # Create an async request
     begin
-      request = client.send(:post, @url, :body => body, :headers => request_headers, :async => true)
+      request = client.send(async_type).send(:post, @url, :body => body, :headers => request_headers, :async => true)
     rescue Exception => e
       @logger.warn("An error occurred while indexing: #{e.message}")
     end
 
-    # with Maticore version < 0.5 using :async => true places the requests in an @async_requests
-    # list which is used & cleaned by Client#execute! but we are not using it here and we must
-    # purge it manually to avoid leaking requests.
-    client.clear_pending
-
     # attach handlers before performing request
     request.on_complete do
       # Make sure we return the token to the pool
-      @request_tokens << token
+      @request_tokens << token if async_type == :background
     end
 
     request.on_success do |response|
-      #string = "Some "+ Time.new.inspect + " " + response
-      #
+      @total = @total + documents.length
+      logger.debug("Successfully submitted", 
+        :docs => documents.length,
+        :response_code => response.code,
+        :total => @total)
       if response.code < 200 || response.code > 299
         log_failure(
             "Encountered non-200 HTTP code #{response.code}",
@@ -109,54 +112,31 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
             :retry_individual => @retry_individual)
         if documents.length > 1 && @retry_individual
           documents.each do |doc| 
-            make_request([doc], 0)
+            make_request([doc])
           end
-        else 
-          puts "%s status code returned for %s docs @ %s\n" % [response.code, body, Time.new.inspect]
         end
       end
     end
 
     request.on_failure do |exception|
-      if count < 1000
-        # Workaround due to Manticore sometimes trying to reuse stale connections after idling, 
-        # essentially all threads will fail once and then it will succeeed. 
-        # TODO: better http client
-        sleep 0.1
-        make_request(documents, count + 1)
-      else
-        log_failure("Could not access URL",
-          :url => url,
-          :method => @http_method,
-          :body => body,
-          :headers => headers,
-          :message => exception.message,
-          :class => exception.class.name,
-          :backtrace => exception.backtrace
-        )
-      end
+      log_failure("Could not access URL",
+        :url => url,
+        :method => @http_method,
+        :body => body,
+        :headers => headers,
+        :message => exception.message,
+        :class => exception.class.name,
+        :backtrace => exception.backtrace
+      )
     end
 
     # Invoke it using the Manticore Executor (CachedThreadPool) directly
-    begin
-      request_async_background(request)
-    rescue Exception => e
-      @logger.warn("An error occurred while indexing: #{e.message}")
-    end
+    request.call if async_type == :background
   end
 
   # This is split into a separate method mostly to help testing
   def log_failure(message, opts)
     @logger.error("[HTTP Output Failure] #{message}", opts)
-  end
-
-  # Manticore doesn't provide a way to attach handlers to background or async requests well
-  # It wants you to use futures. The #async method kinda works but expects single thread batches
-  # and background only returns futures.
-  # Proposed fix to manticore here: https://github.com/cheald/manticore/issues/32
-  def request_async_background(request)
-    @method ||= client.executor.java_method(:submit, [java.util.concurrent.Callable.java_class])
-    @method.call(request)
   end
 
   def request_headers()

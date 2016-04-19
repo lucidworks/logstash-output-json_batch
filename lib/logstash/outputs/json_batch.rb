@@ -38,6 +38,7 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
     @request_tokens = SizedQueue.new(@pool_max)
     @pool_max.times {|t| @request_tokens << true }
     @total = 0
+    @total_failed = 0
     @requests = Array.new
 
     buffer_initialize(
@@ -55,6 +56,7 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
 
   end # def register
 
+  # This module currently does not support parallel requests as that would circumvent the batching
   def receive(event, async_type=:background)
     buffer_receive(event)
   end #def event
@@ -72,20 +74,19 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
   end
 
   def multi_receive(events)
-    events.each {|event| receive(event, :parallel)}
-    client.execute!
+    events.each {|event| buffer_receive(event)}
   end
 
   private
 
-  def make_request(documents, async_type=:background)
+  def make_request(documents)
     body = LogStash::Json.dump(documents)
     # Block waiting for a token
-    token = @request_tokens.pop if async_type == :background
+    token = @request_tokens.pop
 
     # Create an async request
     begin
-      request = client.send(async_type).send(:post, @url, :body => body, :headers => request_headers, :async => true)
+      request = client.send(:post, @url, :body => body, :headers => request_headers, :async => true)
     rescue Exception => e
       @logger.warn("An error occurred while indexing: #{e.message}")
     end
@@ -93,32 +94,37 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
     # attach handlers before performing request
     request.on_complete do
       # Make sure we return the token to the pool
-      @request_tokens << token if async_type == :background
+      @request_tokens << token
     end
 
     request.on_success do |response|
-      @total = @total + documents.length
-      logger.debug("Successfully submitted", 
-        :docs => documents.length,
-        :response_code => response.code,
-        :total => @total)
-      if response.code < 200 || response.code > 299
-        log_failure(
-            "Encountered non-200 HTTP code #{response.code}",
-            :response_code => response.code,
-            :url => url,
-            :response_body => response.body,
-            :num_docs => documents.length,
-            :retry_individual => @retry_individual)
+      if response.code >= 200 && response.code < 300
+        @total = @total + documents.length
+        logger.debug("Successfully submitted", 
+          :docs => documents.length,
+          :response_code => response.code,
+          :total => @total)
+      else
         if documents.length > 1 && @retry_individual
           documents.each do |doc| 
             make_request([doc])
           end
+        else 
+          @total_failed += documents.length
+          log_failure(
+              "Encountered non-200 HTTP code #{response.code}",
+              :response_code => response.code,
+              :url => url,
+              :response_body => response.body,
+              :num_docs => documents.length,
+              :retry_individual => @retry_individual,
+              :total_failed => @total_failed)
         end
       end
     end
 
     request.on_failure do |exception|
+      @total_failed += documents.length
       log_failure("Could not access URL",
         :url => url,
         :method => @http_method,
@@ -126,12 +132,12 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
         :headers => headers,
         :message => exception.message,
         :class => exception.class.name,
-        :backtrace => exception.backtrace
+        :backtrace => exception.backtrace,
+        :total_failed => @total_failed
       )
     end
 
-    # Invoke it using the Manticore Executor (CachedThreadPool) directly
-    request.call if async_type == :background
+    client.execute!
   end
 
   # This is split into a separate method mostly to help testing

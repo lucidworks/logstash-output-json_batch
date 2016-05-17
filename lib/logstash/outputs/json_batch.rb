@@ -82,7 +82,9 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
   def make_request(documents)
     body = LogStash::Json.dump(documents)
     # Block waiting for a token
+    #@logger.info("Requesting token ", :tokens => request_tokens.length())
     token = @request_tokens.pop
+    @logger.debug("Got token", :tokens => @request_tokens.length)
 
     # Create an async request
     begin
@@ -100,7 +102,7 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
     request.on_success do |response|
       if response.code >= 200 && response.code < 300
         @total = @total + documents.length
-        logger.debug("Successfully submitted", 
+        @logger.debug("Successfully submitted", 
           :docs => documents.length,
           :response_code => response.code,
           :total => @total)
@@ -137,7 +139,9 @@ class LogStash::Outputs::JSONBatch < LogStash::Outputs::Base
       )
     end
 
-    client.execute!
+    Thread.new do 
+      client.execute!
+    end
   end
 
   # This is split into a separate method mostly to help testing

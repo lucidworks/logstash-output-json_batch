@@ -17,10 +17,14 @@ Please note that the name of the plugin when used is `json_batch`, since it only
     
 Default batch size is 50, with a wait of at most 5 seconds per send. These can be tweaked with the parameters `flush_size` and `idle_flush_time` respectively.
 
-# Installation & build
+# Installation 
+
+The easiest way to use this plugin is by installing it through rubygems like any other logstash plugin. To get the latest versio installed, you should run the following command: `bin/logstash-plugin install logstash-output-json_batch`
+
+# Building the gem and installing a local version
 
 To build the gem yourself, use `gem build logstash-output-json_batch.gemspec` in the root of this repository. Alternatively, you can download a built version of the gem from the `dist` branch of this repository. 
 
 To install, run the following command, assuming the gem is in the local directory: `$LOGSTASH_HOME/bin/plugin install logstash-output-json_batch-X.Y.Z.gem`
 
-Direct links to the built versions of the gems are available on the [releases page](https://github.com/jwestberg/logstash-output-http_batch/releases)
+Direct links to the built versions of the gems are available on the [releases page](https://github.com/lucidworks/logstash-output-json_batch/releases)
